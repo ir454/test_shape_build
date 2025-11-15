@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Neon Musical Cubes with Smooth Sky</title>
+    <title>Neon Musical Circles with Smooth Sky</title>
     <style>
         body { margin: 0; overflow: hidden; background: #000; }
         canvas { display: block; }
@@ -53,10 +53,10 @@ light.position.set(5, 10, 7);
 scene.add(light);
 
 // -----------------------------
-// CREATE FOUR CUBES
+// CREATE FOUR FLOATING CIRCLES
 // -----------------------------
-const cubes = [];
-const cubePositions = [
+const circles = [];
+const circlePositions = [
     new THREE.Vector3(-10, 0.5, -10),
     new THREE.Vector3(10, 0.5, -10),
     new THREE.Vector3(-10, 0.5, 10),
@@ -66,12 +66,18 @@ const cubePositions = [
 const neonColors = [0xff00ff, 0x00ffff, 0xffff00, 0xff5500];
 
 for (let i = 0; i < 4; i++) {
-    const cubeMat = new THREE.MeshStandardMaterial({ color: neonColors[i], emissive: neonColors[i], emissiveIntensity: 0.6 });
-    const cube = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), cubeMat);
-    cube.position.copy(cubePositions[i]);
-    scene.add(cube);
-    cubes.push({
-        mesh: cube,
+    const circleMat = new THREE.MeshStandardMaterial({ 
+        color: neonColors[i], 
+        emissive: neonColors[i], 
+        emissiveIntensity: 0.8, 
+        transparent: true, 
+        opacity: 0.9 
+    });
+    const circle = new THREE.Mesh(new THREE.SphereGeometry(1.2, 32, 32), circleMat);
+    circle.position.copy(circlePositions[i]);
+    scene.add(circle);
+    circles.push({
+        mesh: circle,
         currentColor: new THREE.Color(neonColors[i]),
         targetColor: new THREE.Color(neonColors[i])
     });
@@ -82,25 +88,25 @@ for (let i = 0; i < 4; i++) {
 // -----------------------------
 const skyVisuals = [];
 const segments = 30;
-const linesPerCube = 15;
+const linesPerCircle = 15;
 for (let i = 0; i < 4; i++) {
-    const cubeLines = [];
-    for (let l = 0; l < linesPerCube; l++) {
+    const circleLines = [];
+    for (let l = 0; l < linesPerCircle; l++) {
         const geometry = new THREE.BufferGeometry();
         const positions = new Float32Array(segments * 3);
         for (let j = 0; j < segments; j++) {
             positions[j * 3 + 0] = j - segments / 2;
             positions[j * 3 + 1] = 0;
-            positions[j * 3 + 2] = (l - linesPerCube / 2) * 0.4;
+            positions[j * 3 + 2] = (l - linesPerCircle / 2) * 0.4;
         }
         geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
         const material = new THREE.LineBasicMaterial({ color: neonColors[i], linewidth: 2 });
         const line = new THREE.Line(geometry, material);
-        line.position.copy(cubePositions[i]).add(new THREE.Vector3(0, 3, 0));
+        line.position.copy(circlePositions[i]).add(new THREE.Vector3(0, 3, 0));
         scene.add(line);
-        cubeLines.push({ geometry, material, angle: Math.random() * Math.PI * 2 });
+        circleLines.push({ geometry, material, angle: Math.random() * Math.PI * 2 });
     }
-    skyVisuals.push(cubeLines);
+    skyVisuals.push(circleLines);
 }
 
 // -----------------------------
@@ -135,7 +141,7 @@ function updateMovement() {
 // -----------------------------
 let audioCtx;
 let audioStarted = false;
-const cubeAudio = [];
+const circleAudio = [];
 const melody = [261.63, 293.66, 329.63, 392.00, 440.00];
 
 function createImpulseResponse(ctx, duration = 1.0, decay = 1.0) {
@@ -193,7 +199,7 @@ function startAudio() {
 
         osc.start();
 
-        cubeAudio.push({
+        circleAudio.push({
             osc, gain, panner, lowpass,
             nextNoteTime: audioCtx.currentTime + Math.random() * 0.5,
             currentFreq: 0,
@@ -208,19 +214,19 @@ function startAudio() {
 document.getElementById("startAudio").onclick = startAudio;
 
 // -----------------------------
-// UPDATE MELODIES AND DYNAMIC COLORS
+// UPDATE MELODIES AND COLORS
 // -----------------------------
 function updateMelody() {
     if (!audioStarted) return;
     const now = audioCtx.currentTime;
 
     for (let i = 0; i < 4; i++) {
-        const c = cubeAudio[i];
+        const c = circleAudio[i];
         if (now >= c.nextNoteTime) {
             const noteIndex = Math.floor(Math.random() * melody.length);
             const freq = melody[noteIndex];
-            const color = new THREE.Color(`hsl(${Math.random()*360}, 100%, 50%)`); // neon random
-            cubes[i].targetColor.copy(color); // smoothly transition to this color
+            const color = new THREE.Color(`hsl(${Math.random()*360}, 100%, 50%)`);
+            circles[i].targetColor.copy(color); 
             c.lastNoteColor = color;
 
             c.osc.frequency.setValueAtTime(freq, now);
@@ -250,14 +256,14 @@ function updateAudioSpatial() {
     audioCtx.listener.upZ.value = 0;
 
     for (let i = 0; i < 4; i++) {
-        const cubeObj = cubes[i].mesh;
-        const src = cubeAudio[i];
+        const circleObj = circles[i].mesh;
+        const src = circleAudio[i];
 
-        src.panner.positionX.value = cubeObj.position.x;
-        src.panner.positionY.value = cubeObj.position.y;
-        src.panner.positionZ.value = cubeObj.position.z;
+        src.panner.positionX.value = circleObj.position.x;
+        src.panner.positionY.value = circleObj.position.y;
+        src.panner.positionZ.value = circleObj.position.z;
 
-        const dist = camera.position.distanceTo(cubeObj.position);
+        const dist = camera.position.distanceTo(circleObj.position);
         const maxDist = 25;
         const t = Math.min(dist / maxDist, 1);
 
@@ -309,7 +315,7 @@ function perlin2(x, y) {
 }
 
 // -----------------------------
-// UPDATE SKY VISUALS (PERLIN + WIND + ROTATION + COLOR TRANSITION)
+// UPDATE SKY VISUALS
 // -----------------------------
 function updateSkyVisuals() {
     const time = performance.now() / 1000;
@@ -317,14 +323,14 @@ function updateSkyVisuals() {
     const rotationSpeed = 0.02;
 
     for (let i = 0; i < 4; i++) {
-        const cubeData = cubes[i];
+        const circleData = circles[i];
         const lines = skyVisuals[i];
-        const volume = cubeAudio[i]?.currentVolume || 0;
+        const volume = circleAudio[i]?.currentVolume || 0;
 
         // Smooth color transition
-        cubeData.currentColor.lerp(cubeData.targetColor, 0.02);
-        cubeData.mesh.material.color.copy(cubeData.currentColor);
-        cubeData.mesh.material.emissive.copy(cubeData.currentColor);
+        circleData.currentColor.lerp(circleData.targetColor, 0.02);
+        circleData.mesh.material.color.copy(circleData.currentColor);
+        circleData.mesh.material.emissive.copy(circleData.currentColor);
 
         for (let l = 0; l < lines.length; l++) {
             const v = lines[l];
@@ -349,12 +355,21 @@ function updateSkyVisuals() {
 
             v.geometry.attributes.position.needsUpdate = true;
 
-            // Smooth color transition for lines
             const brightness = 0.5 + 0.5 * volume;
-            const lineColor = new THREE.Color().copy(cubeData.currentColor).multiplyScalar(brightness);
+            const lineColor = new THREE.Color().copy(circleData.currentColor).multiplyScalar(brightness);
             v.material.color.lerp(lineColor, 0.05);
         }
     }
+}
+
+// -----------------------------
+// FLOATING ANIMATION
+// -----------------------------
+function updateFloating() {
+    const time = performance.now() / 1000;
+    circles.forEach((c, i) => {
+        c.mesh.position.y = 0.5 + Math.sin(time + i) * 1.0;
+    });
 }
 
 // -----------------------------
@@ -366,6 +381,7 @@ function animate() {
     updateMelody();
     updateAudioSpatial();
     updateSkyVisuals();
+    updateFloating();
     renderer.render(scene, camera);
 }
 animate();
