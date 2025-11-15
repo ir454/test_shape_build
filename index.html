@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Neon Floating Circles with Mini-Map and Timer</title>
+    <title>Neon Floating Circles with Mini-Map, Timer, Bobbing, and Teleport</title>
     <style>
         body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; }
         canvas { display: block; }
@@ -96,6 +96,9 @@
         scene.add(circle);
         circles.push({
             mesh: circle,
+            baseY: circle.position.y, // for bobbing
+            bobPhase: Math.random() * Math.PI * 2, // random start phase
+            bobSpeed: 1 + Math.random() * 0.5, // speed of bobbing
             currentColor: new THREE.Color(neonColors[i]),
             targetColor: new THREE.Color(neonColors[i])
         });
@@ -126,6 +129,18 @@
         if(keys["a"] || keys["A"]) camera.position.addScaledVector(right, -moveSpeed);
         if(keys["d"] || keys["D"]) camera.position.addScaledVector(right, moveSpeed);
     }
+
+    // -----------------------------
+    // TELEPORT CIRCLES
+    // -----------------------------
+    document.addEventListener("keydown", e => {
+        const n = parseInt(e.key);
+        if(n >= 1 && n <= 4){
+            const circle = circles[n-1];
+            circle.mesh.position.set(camera.position.x, camera.position.y, camera.position.z);
+            circle.baseY = camera.position.y; // reset bobbing base
+        }
+    });
 
     // -----------------------------
     // AUDIO SETUP
@@ -310,8 +325,8 @@
         mapCtx.clearRect(0,0,mapCanvas.width,mapCanvas.height);
         // Draw sound sources
         for(let i=0;i<circlePositions.length;i++){
-            const sx = 100 + circlePositions[i].x*2;
-            const sy = 100 - circlePositions[i].z*2;
+            const sx = 100 + circles[i].mesh.position.x*2;
+            const sy = 100 - circles[i].mesh.position.z*2;
             mapCtx.fillStyle = `#${neonColors[i].toString(16).padStart(6,'0')}`;
             mapCtx.beginPath();
             mapCtx.arc(sx, sy, 5,0,Math.PI*2);
@@ -329,13 +344,21 @@
     // -----------------------------
     // ANIMATE
     // -----------------------------
+    const clock = new THREE.Clock();
+
     function animate(){
         requestAnimationFrame(animate);
+        const t = clock.getElapsedTime();
+
         updateMovement();
         updateMelody();
         updateAudioSpatial();
 
         for(let i=0;i<circles.length;i++){
+            // Bobbing
+            circles[i].mesh.position.y = circles[i].baseY + Math.sin(t*circles[i].bobSpeed + circles[i].bobPhase)*0.5;
+
+            // Color lerp
             circles[i].currentColor.lerp(circles[i].targetColor,0.02);
             circles[i].mesh.material.color.copy(circles[i].currentColor);
             circles[i].mesh.material.emissive.copy(circles[i].currentColor);
