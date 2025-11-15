@@ -1,3 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>3D Audio Visual Experience</title>
+<style>
+  body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; }
+  canvas { display: block; }
+  #uiContainer {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background: rgba(0,0,0,0.4);
+    padding: 10px;
+    border-radius: 8px;
+  }
+  #timer { font-size: 28px; color: white; font-weight: bold; text-align: center; }
+  #startAudio {
+    padding: 8px 16px;
+    background: #ff4444;
+    color: white;
+    font-size: 16px;
+    border: none;
+    cursor: pointer;
+    border-radius: 6px;
+  }
+  #miniMap {
+    width: 150px;
+    height: 150px;
+    background: #111;
+    border: 2px solid white;
+    border-radius: 6px;
+  }
+</style>
+</head>
+<body>
+<div id="uiContainer">
+  <div id="timer">05:00</div>
+  <canvas id="miniMap"></canvas>
+  <button id="startAudio">Click to Enable Sound</button>
+</div>
+
 <script type="module">
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
 
@@ -302,73 +347,6 @@ function stopAudio(){
     audioStarted=false;
 }
 
-// -------------------- WIREMESH CLOUDS --------------------
-const wireClouds = [];
-const cloudSegments = 25;
-
-function createWireCloud(circleIndex){
-    const points = [];
-    for(let i=0;i<cloudSegments;i++){
-        points.push(new THREE.Vector3(
-            (Math.random()-0.5)*2,
-            (Math.random()-0.5)*2,
-            (Math.random()-0.5)*2
-        ));
-    }
-
-    // Fully connect all points into line segments for mesh
-    const geometry = new THREE.BufferGeometry();
-    const vertices = [];
-    for(let a=0;a<points.length;a++){
-        for(let b=a+1;b<points.length;b++){
-            vertices.push(points[a].x,points[a].y,points[a].z);
-            vertices.push(points[b].x,points[b].y,points[b].z);
-        }
-    }
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices,3));
-    const material = new THREE.LineBasicMaterial({
-        color: neonColors[circleIndex],
-        transparent: true,
-        opacity: 0.4
-    });
-    const lineSegments = new THREE.LineSegments(geometry, material);
-    scene.add(lineSegments);
-    wireClouds[circleIndex] = {lineSegments, points, geometry, material};
-}
-
-for(let i=0;i<4;i++) createWireCloud(i);
-
-function updateWireClouds(){
-    const time = performance.now()/1000;
-    for(let i=0;i<4;i++){
-        const cloud = wireClouds[i];
-        const circle = circles[i];
-        const freq = circleAudio[i]?.currentFreq || 440;
-        const amp = circleAudio[i]?.currentVolume || 0;
-
-        // Move points around the circle mesh with sound
-        const vertices = [];
-        for(let a=0;a<cloud.points.length;a++){
-            const p = cloud.points[a];
-            p.x = (Math.random()-0.5)*2 + Math.sin(freq*time + a)*amp*2 + circle.mesh.position.x;
-            p.y = (Math.random()-0.5)*2 + Math.cos(freq*time + a*0.5)*amp*2 + circle.mesh.position.y;
-            p.z = (Math.random()-0.5)*2 + Math.sin(freq*time + a*0.7)*amp*2 + circle.mesh.position.z;
-
-            for(let b=a+1;b<cloud.points.length;b++){
-                const q = cloud.points[b];
-                vertices.push(p.x,p.y,p.z,q.x,q.y,q.z);
-            }
-        }
-
-        cloud.geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices,3));
-        cloud.geometry.attributes.position.needsUpdate = true;
-
-        const color = circle.currentColor.clone().multiplyScalar(0.5 + 0.5*amp);
-        cloud.material.color.copy(color);
-        cloud.material.opacity = 0.3 + 0.7*amp;
-    }
-}
-
 // -------------------- ANIMATE --------------------
 function animate(){
     requestAnimationFrame(animate);
@@ -376,7 +354,6 @@ function animate(){
     updateMelody();
     updateAudioSpatial();
     updateCirclesVisuals();
-    updateWireClouds();
     updateMiniMap();
     if(timerSeconds <= 240) fadeRectangles(); // Start fading after 1 min
     renderer.render(scene,camera);
@@ -394,3 +371,5 @@ window.addEventListener("resize",()=>{
 document.getElementById("startAudio").onclick=startAudio;
 
 </script>
+</body>
+</html>
