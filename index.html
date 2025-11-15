@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Neon Musical Cubes with Wireframe Mountains</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; }
+        canvas { display: block; }
+        #startAudio {
+            position: absolute;
+            top: 20px; left: 20px;
+            padding: 12px 20px;
+            background: #ff4444; color: #fff;
+            font-size: 18px; border: none;
+            cursor: pointer;
+            border-radius: 8px;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+<button id="startAudio">Click to Enable Sound</button>
+
+<script type="module">
+import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
+
+// -----------------------------
+// SCENE SETUP
+// -----------------------------
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x000000);
+
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 200);
+camera.position.set(0, 1.5, 15);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+document.body.appendChild(renderer.domElement);
+
+// Neon Wire Mesh Floor
+const floorSize = 60;
+const floorSegments = 60;
+const floorGeometry = new THREE.PlaneGeometry(floorSize, floorSize, floorSegments, floorSegments);
+const floorMaterial = new THREE.LineBasicMaterial({ color: 0x00ff99, transparent: true, opacity: 0.5 });
+const floorWire = new THREE.LineSegments(new THREE.WireframeGeometry(floorGeometry), floorMaterial);
+floorWire.rotation.x = -Math.PI / 2;
+scene.add(floorWire);
+
+// -----------------------------
+// WIRE MESH MOUNTAINS
+// -----------------------------
+function createWireMountain(size = 20, segments = 40, height = 5, offsetX = 0, offsetZ = 0) {
+    const geometry = new THREE.PlaneGeometry(size, size, segments, segments);
+    const positions = geometry.attributes.position.array;
+
+    for (let i = 0; i <= segments; i++) {
+        for (let j = 0; j <= segments; j++) {
+            const idx = 3 * (i * (segments + 1) + j);
+            const x = positions[idx + 0];
+            const z = positions[idx + 2];
+            // Use Perlin noise for mountain height
+            positions[idx + 1] = perlin2((x + offsetX) * 0.1, (z + offsetZ) * 0.1) * height;
+        }
+    }
+    geometry.attributes.position.needsUpdate = true;
+    geometry.computeVertexNormals();
+
+    const material = new THREE.LineBasicMaterial({ color: 0x00ff99, transparent: true, opacity: 0.5 });
+    const wire = new THREE.LineSegments(new THREE.WireframeGeometry(geometry), material);
+    wire.rotation.x = -Math.PI / 2;
+    wire.position.set(offsetX, 0, offsetZ);
+    scene.add(wire);
+}
+
+// Place mountains around base
+const mountainDistance = 35;
+createWireMountain(20, 40, 6, -mountainDistance, -mountainDistance);
+createWireMountain(20, 40, 6, mountainDistance, -mountainDistance);
+createWireMountain(20, 40, 6, -mountainDistance, mountainDistance);
+createWireMountain(20, 40, 6, mountainDistance, mountainDistance);
+
+// -----------------------------
+// LIGHTS
+// -----------------------------
+const light = new THREE.DirectionalLight(0xffffff, 1);
+light.position.set(5, 10, 7);
+scene.add(light);
+
+// -----------------------------
+// CREATE FOUR CUBES
+// -----------------------------
+const cubes = [];
+const cubePositions = [
+    new THREE.Vector3(-10, 0.5, -10),
+    new THREE.Vector3(10, 0.5, -10),
+    new THREE.Vector3(-10, 0.5, 10),
+    new THREE.Vector3(10, 0.5, 10)
+];
+
+const neonColors = [0xff00ff, 0x00ffff, 0xffff00, 0xff5500];
+
+for (let i = 0; i < 4; i++) {
+    const cubeMat = new THREE.MeshStandardMaterial({ 
+        color: neonColors[i], 
+        emissive: neonColors[i], 
+        emissiveIntensity: 0.6
+    });
+    const cube = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), cubeMat);
+    cube.position.copy(cubePositions[i]);
+    scene.add(cube);
+    cubes.push({
+        mesh: cube,
+        currentColor: new THREE.Color(neonColors[i]),
+        targetColor: new THREE.Color(neonColors[i])
+    });
+}
+
+// -----------------------------
+// WIRE SKY VISUALS (CLOUD-LIKE)
+// -----------------------------
+const skyVisuals = [];
+const segments = 30;
+const linesPerCube = 15;
+for (let i = 0; i < 4; i++) {
+    const cubeLines = [];
+    for (let l = 0; l < linesPerCube; l++) {
+        const geometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(segments * 3);
+        for (let j = 0; j < segments; j++) {
+            positions[j * 3 + 0] = j - segments / 2;
+            positions[j * 3 + 1] = 0;
+            positions[j * 3 + 2] = (l - linesPerCube / 2) * 0.4;
+        }
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        const material = new THREE.LineBasicMaterial({ color: neonColors[i], linewidth: 2 });
+        const line = new THREE.Line(geometry, material);
+        line.position.copy(cubePositions[i]).add(new THREE.Vector3(0, 3, 0));
+        scene.add(line);
+        cubeLines.push({ geometry, material, angle: Math.random() * Math.PI * 2 });
+    }
+    skyVisuals.push(cubeLines);
+}
+
+// -----------------------------
+// MOVEMENT CONTROLS
+// -----------------------------
+const keys = {};
+document.addEventListener("keydown", e => keys[e.key] = true);
+document.addEventListener("keyup", e => delete keys[e.key]);
+
+let yaw = 0, pitch = 0;
+function updateMovement() {
+    const moveSpeed = 0.13;
+    const rotSpeed = 0.02;
+    if (keys["ArrowLeft"]) yaw += rotSpeed;
+    if (keys["ArrowRight"]) yaw -= rotSpeed;
+    if (keys["ArrowUp"]) pitch += rotSpeed;
+    if (keys["ArrowDown"]) pitch -= rotSpeed;
+
+    camera.rotation.set(pitch, yaw, 0);
+
+    const forward = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
+    const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
+
+    if (keys["w"] || keys["W"]) camera.position.addScaledVector(forward, moveSpeed);
+    if (keys["s"] || keys["S"]) camera.position.addScaledVector(forward, -moveSpeed);
+    if (keys["a"] || keys["A"]) camera.position.addScaledVector(right, -moveSpeed);
+    if (keys["d"] || keys["D"]) camera.position.addScaledVector(right, moveSpeed);
+}
+
+// -----------------------------
+// AUDIO SETUP
+// -----------------------------
+let audioCtx;
+let audioStarted = false;
+const cubeAudio = [];
+const melody = [261.63, 293.66, 329.63, 392.00, 440.00];
+
+function createImpulseResponse(ctx, duration = 1.0, decay = 1.0) {
+    const rate = ctx.sampleRate;
+    const length = rate * duration;
+    const impulse = ctx.createBuffer(2, length, rate);
+    const left = impulse.getChannelData(0);
+    const right = impulse.getChannelData(1);
+    for (let i = 0; i < length; i++) {
+        const n = (length - i) / length;
+        const v = Math.random() * Math.pow(n, decay);
+        left[i] = v; right[i] = v;
+    }
+    return impulse;
+}
+
+function startAudio() {
+    audioCtx = new AudioContext();
+    const reverbImpulse = createImpulseResponse(audioCtx);
+
+    for (let i = 0; i < 4; i++) {
+        const osc = audioCtx.createOscillator();
+        osc.type = "triangle";
+
+        const panner = audioCtx.createPanner();
+        panner.panningModel = "HRTF";
+        panner.distanceModel = "exponential";
+        panner.refDistance = 1.0;
+        panner.maxDistance = 60;
+        panner.rolloffFactor = 0.8;
+
+        const lowpass = audioCtx.createBiquadFilter();
+        lowpass.type = "lowpass";
+        lowpass.frequency.value = 20000;
+
+        const convolver = audioCtx.createConvolver();
+        convolver.buffer = reverbImpulse;
+
+        const reverbGain = audioCtx.createGain();
+        reverbGain.gain.value = 0.10;
+
+        const gain = audioCtx.createGain();
+        gain.gain.value = 0;
+
+        // Dry path
+        osc.connect(panner);
+        panner.connect(lowpass);
+        lowpass.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        // Wet path
+        osc.connect(convolver);
+        convolver.connect(reverbGain);
+        reverbGain.connect(audioCtx.destination);
+
+        osc.start();
+
+        cubeAudio.push({
+            osc, gain, panner, lowpass,
+            nextNoteTime: audioCtx.currentTime + Math.random() * 0.5,
+            currentFreq: 0,
+            currentVolume: 0,
+            lastNoteColor: new THREE.Color(neonColors[i])
+        });
+    }
+
+    audioStarted = true;
+    document.getElementById("startAudio").style.display = "none";
+}
+document.getElementById("startAudio").onclick = startAudio;
+
+// -----------------------------
+// PERLIN NOISE
+// -----------------------------
+const perm = new Uint8Array(512);
+const p = new Uint8Array(256);
+for (let i = 0; i < 256; i++) p[i] = i;
+for (let i = 255; i > 0; i--) {
+    const n = Math.floor(Math.random() * (i + 1));
+    [p[i], p[n]] = [p[n], p[i]];
+}
+for (let i = 0; i < 512; i++) perm[i] = p[i & 255];
+
+function fade(t) { return t * t * t * (t * (t * 6 - 15) + 10); }
+function lerp(t, a, b) { return a + t * (b - a); }
+function grad(hash, x, y) {
+    const h = hash & 3;
+    const u = h < 2 ? x : y;
+    const v = h < 2 ? y : x;
+    return ((h & 1) === 0 ? u : -u) + ((h & 2) === 0 ? v : -v);
+}
+function perlin2(x, y) {
+    const X = Math.floor(x) & 255;
+    const Y = Math.floor(y) & 255;
+    const topRight = perm[perm[X + 1] + Y + 1];
+    const topLeft = perm[perm[X] + Y + 1];
+    const bottomRight = perm[perm[X + 1] + Y];
+    const bottomLeft = perm[perm[X] + Y];
+    const xf = x - Math.floor(x);
+    const yf = y - Math.floor(y);
+    const u = fade(xf);
+    const v = fade(yf);
+    const x1 = lerp(u, grad(bottomLeft, xf, yf), grad(bottomRight, xf - 1, yf));
+    const x2 = lerp(u, grad(topLeft, xf, yf - 1), grad(topRight, xf - 1, yf - 1));
+    return (lerp(v, x1, x2) + 1) / 2;
+}
+
+// -----------------------------
+// MAIN LOOP
+// -----------------------------
+function animate() {
+    requestAnimationFrame(animate);
+    updateMovement();
+    updateMelody();
+    updateAudioSpatial();
+    updateSkyVisuals();
+    renderer.render(scene, camera);
+}
+animate();
+
+window.addEventListener("resize", () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+</body>
+</html>
