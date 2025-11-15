@@ -4,23 +4,31 @@
 <meta charset="UTF-8">
 <title>3D Audio Visual Experience</title>
 <style>
-  body { margin: 0; overflow: hidden; background: #000; }
+  body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; }
   canvas { display: block; }
-  #timer {
+  
+  /* UI container on top-left */
+  #uiContainer {
     position: absolute;
     top: 10px;
-    left: 50%;
-    transform: translateX(-50%);
-    font-size: 32px;
-    color: white;
-    font-family: sans-serif;
-    font-weight: bold;
-  }
-  #startAudio {
-    position: absolute;
-    top: 120px;
     left: 10px;
-    padding: 10px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background: rgba(0,0,0,0.4);
+    padding: 10px;
+    border-radius: 8px;
+  }
+
+  #timer {
+    font-size: 28px;
+    color: white;
+    font-weight: bold;
+    text-align: center;
+  }
+
+  #startAudio {
+    padding: 8px 16px;
     background: #ff4444;
     color: white;
     font-size: 16px;
@@ -28,22 +36,23 @@
     cursor: pointer;
     border-radius: 6px;
   }
+
   #miniMap {
-    position: absolute;
-    top: 10px;
-    left: 10px;
-    width: 120px;
-    height: 120px;
-    background: #000;
+    width: 150px;
+    height: 150px;
+    background: #111;
     border: 2px solid white;
+    border-radius: 6px;
   }
 </style>
 </head>
 <body>
 
-<div id="timer">05:00</div>
-<canvas id="miniMap"></canvas>
-<button id="startAudio">Click to Enable Sound</button>
+<div id="uiContainer">
+  <div id="timer">05:00</div>
+  <canvas id="miniMap"></canvas>
+  <button id="startAudio">Click to Enable Sound</button>
+</div>
 
 <script type="module">
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
@@ -63,10 +72,10 @@ document.body.appendChild(renderer.domElement);
 const floorSize = 60;
 const floorSegments = 60;
 const floorGeometry = new THREE.PlaneGeometry(floorSize,floorSize,floorSegments,floorSegments);
-const floorMaterial = new THREE.LineBasicMaterial({color:0xffffff, transparent:true, opacity:0.5});
-const floorWire = new THREE.LineSegments(new THREE.WireframeGeometry(floorGeometry), floorMaterial);
-floorWire.rotation.x = -Math.PI/2;
-scene.add(floorWire);
+const floorMaterial = new THREE.MeshBasicMaterial({color:0xffffff, wireframe:true, transparent:true, opacity:0.5});
+const floorMesh = new THREE.Mesh(floorGeometry,floorMaterial);
+floorMesh.rotation.x=-Math.PI/2;
+scene.add(floorMesh);
 
 // -------------------- LIGHT --------------------
 const light = new THREE.DirectionalLight(0xffffff,1);
@@ -248,15 +257,11 @@ function updateCirclesVisuals(){
     const time=performance.now()/1000;
     for(let i=0;i<4;i++){
         const circleData=circles[i];
-        // bob up and down
         circleData.mesh.position.y=circleData.baseY+Math.sin(time+i)*0.3;
-
-        // color lerp
         circleData.currentColor.lerp(circleData.targetColor,0.02);
         circleData.mesh.material.color.copy(circleData.currentColor);
         circleData.mesh.material.emissive.copy(circleData.currentColor);
 
-        // segments above
         const segs=circleSegments[i];
         for(let j=0;j<segs.length;j++){
             const seg=segs[j];
@@ -278,11 +283,9 @@ const miniMap=document.getElementById("miniMap");
 const miniCtx=miniMap.getContext("2d");
 function updateMiniMap(){
     miniCtx.clearRect(0,0,miniMap.width,miniMap.height);
-    // floor square
     miniCtx.fillStyle="#111";
     miniCtx.fillRect(0,0,miniMap.width,miniMap.height);
 
-    // sound sources
     circles.forEach((c,i)=>{
         const x=Math.floor((c.mesh.position.x+floorSize/2)/floorSize*miniMap.width);
         const y=Math.floor((c.mesh.position.z+floorSize/2)/floorSize*miniMap.height);
@@ -290,13 +293,10 @@ function updateMiniMap(){
         miniCtx.beginPath(); miniCtx.arc(x,y,5,0,Math.PI*2); miniCtx.fill();
     });
 
-    // user dot
     const ux=Math.floor((camera.position.x+floorSize/2)/floorSize*miniMap.width);
     const uy=Math.floor((camera.position.z+floorSize/2)/floorSize*miniMap.height);
     miniCtx.fillStyle="red";
-    miniCtx.beginPath();
-    miniCtx.arc(ux,uy,5,0,Math.PI*2);
-    miniCtx.fill();
+    miniCtx.beginPath(); miniCtx.arc(ux,uy,5,0,Math.PI*2); miniCtx.fill();
 }
 
 // -------------------- DRUM MACHINE --------------------
@@ -309,6 +309,7 @@ function startDrumMachine(){
     drumActive=true;
     drumInterval=setInterval(()=>{
         const now=audioCtx.currentTime;
+
         // kick
         const kick=audioCtx.createOscillator();
         const kickGain=audioCtx.createGain();
@@ -320,6 +321,9 @@ function startDrumMachine(){
         panner.positionX.value=drumPosition.x; panner.positionY.value=drumPosition.y; panner.positionZ.value=drumPosition.z;
         kickGain.connect(panner); panner.connect(audioCtx.destination);
         kick.start(now); kick.stop(now+0.2);
+
+        // Extrude floor
+        extrudeFloor(0.5);
 
         // snare-like noise
         if(Math.random()<0.5){
@@ -341,6 +345,14 @@ function startDrumMachine(){
 function stopDrumMachine(){
     if(drumInterval) clearInterval(drumInterval);
     drumActive=false;
+}
+
+// -------------------- EXTRUDE FLOOR --------------------
+function extrudeFloor(amount){
+    floorMesh.geometry.vertices.forEach(v=>{
+        v.y += (Math.random()-0.5)*amount;
+    });
+    floorMesh.geometry.verticesNeedUpdate=true;
 }
 
 // -------------------- STOP AUDIO --------------------
@@ -370,6 +382,7 @@ window.addEventListener("resize",()=>{
 
 // -------------------- BUTTON --------------------
 document.getElementById("startAudio").onclick=startAudio;
+
 </script>
 </body>
 </html>
