@@ -1,23 +1,60 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Neon Musical Circles with Smooth Sky</title>
-    <style>
-        body { margin: 0; overflow: hidden; background: #000; }
-        canvas { display: block; }
-        #startAudio {
-            position: absolute;
-            top: 20px; left: 20px;
-            padding: 12px 20px;
-            background: #ff4444; color: #fff;
-            font-size: 18px; border: none;
-            cursor: pointer;
-            border-radius: 8px;
-        }
-    </style>
+<meta charset="UTF-8">
+<title>Neon Floating Circles with Mini-Map</title>
+<style>
+    body { margin: 0; overflow: hidden; background: #000; }
+    canvas { display: block; }
+
+    /* Mini-map */
+    #miniMap {
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        width: 200px;
+        height: 200px;
+        background: rgba(0,0,0,0.6);
+        border: 2px solid #00ff99;
+        border-radius: 8px;
+    }
+
+    /* User indicator on map */
+    #userDot {
+        position: absolute;
+        width: 10px;
+        height: 10px;
+        background: #ff0000;
+        border-radius: 50%;
+    }
+
+    /* Sound source indicators */
+    .sourceDot {
+        position: absolute;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+    }
+
+    /* Start button below map */
+    #startAudio {
+        position: absolute;
+        top: 230px; /* 20px top + 200px map + 10px gap */
+        left: 20px;
+        padding: 12px 20px;
+        background: #ff4444;
+        color: #fff;
+        font-size: 18px;
+        border: none;
+        cursor: pointer;
+        border-radius: 8px;
+    }
+</style>
 </head>
 <body>
+<div id="miniMap">
+    <div id="userDot"></div>
+</div>
 <button id="startAudio">Click to Enable Sound</button>
 
 <script type="module">
@@ -36,7 +73,7 @@ const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
-// Neon Wire Mesh Floor
+// Neon wire mesh floor
 const floorSize = 60;
 const floorSegments = 60;
 const floorGeometry = new THREE.PlaneGeometry(floorSize, floorSize, floorSegments, floorSegments);
@@ -53,27 +90,24 @@ light.position.set(5, 10, 7);
 scene.add(light);
 
 // -----------------------------
-// CREATE FOUR FLOATING CIRCLES
+// CREATE FLOATING CIRCLES
 // -----------------------------
 const circles = [];
 const circlePositions = [
-    new THREE.Vector3(-10, 0.5, -10),
-    new THREE.Vector3(10, 0.5, -10),
-    new THREE.Vector3(-10, 0.5, 10),
-    new THREE.Vector3(10, 0.5, 10)
+    new THREE.Vector3(-10, 1, -10),
+    new THREE.Vector3(10, 1, -10),
+    new THREE.Vector3(-10, 1, 10),
+    new THREE.Vector3(10, 1, 10)
 ];
-
 const neonColors = [0xff00ff, 0x00ffff, 0xffff00, 0xff5500];
 
 for (let i = 0; i < 4; i++) {
-    const circleMat = new THREE.MeshStandardMaterial({ 
-        color: neonColors[i], 
-        emissive: neonColors[i], 
-        emissiveIntensity: 0.8, 
-        transparent: true, 
-        opacity: 0.9 
+    const circleMat = new THREE.MeshStandardMaterial({
+        color: neonColors[i],
+        emissive: neonColors[i],
+        emissiveIntensity: 0.7
     });
-    const circle = new THREE.Mesh(new THREE.SphereGeometry(1.2, 32, 32), circleMat);
+    const circle = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 32), circleMat);
     circle.position.copy(circlePositions[i]);
     scene.add(circle);
     circles.push({
@@ -84,29 +118,18 @@ for (let i = 0; i < 4; i++) {
 }
 
 // -----------------------------
-// WIRE SKY VISUALS (CLOUD-LIKE)
+// MINI-MAP DOTS FOR SOURCES
 // -----------------------------
-const skyVisuals = [];
-const segments = 30;
-const linesPerCircle = 15;
-for (let i = 0; i < 4; i++) {
-    const circleLines = [];
-    for (let l = 0; l < linesPerCircle; l++) {
-        const geometry = new THREE.BufferGeometry();
-        const positions = new Float32Array(segments * 3);
-        for (let j = 0; j < segments; j++) {
-            positions[j * 3 + 0] = j - segments / 2;
-            positions[j * 3 + 1] = 0;
-            positions[j * 3 + 2] = (l - linesPerCircle / 2) * 0.4;
-        }
-        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-        const material = new THREE.LineBasicMaterial({ color: neonColors[i], linewidth: 2 });
-        const line = new THREE.Line(geometry, material);
-        line.position.copy(circlePositions[i]).add(new THREE.Vector3(0, 3, 0));
-        scene.add(line);
-        circleLines.push({ geometry, material, angle: Math.random() * Math.PI * 2 });
-    }
-    skyVisuals.push(circleLines);
+const miniMap = document.getElementById("miniMap");
+const userDot = document.getElementById("userDot");
+const sourceDots = [];
+
+for (let i = 0; i < circles.length; i++) {
+    const dot = document.createElement("div");
+    dot.className = "sourceDot";
+    dot.style.background = "#" + neonColors[i].toString(16).padStart(6,"0");
+    miniMap.appendChild(dot);
+    sourceDots.push(dot);
 }
 
 // -----------------------------
@@ -226,7 +249,7 @@ function updateMelody() {
             const noteIndex = Math.floor(Math.random() * melody.length);
             const freq = melody[noteIndex];
             const color = new THREE.Color(`hsl(${Math.random()*360}, 100%, 50%)`);
-            circles[i].targetColor.copy(color); 
+            circles[i].targetColor.copy(color);
             c.lastNoteColor = color;
 
             c.osc.frequency.setValueAtTime(freq, now);
@@ -279,97 +302,42 @@ function updateAudioSpatial() {
 }
 
 // -----------------------------
-// SIMPLE PERLIN NOISE
+// UPDATE CIRCLE COLORS
 // -----------------------------
-const perm = new Uint8Array(512);
-const p = new Uint8Array(256);
-for (let i = 0; i < 256; i++) p[i] = i;
-for (let i = 255; i > 0; i--) {
-    const n = Math.floor(Math.random() * (i + 1));
-    [p[i], p[n]] = [p[n], p[i]];
-}
-for (let i = 0; i < 512; i++) perm[i] = p[i & 255];
-
-function fade(t) { return t * t * t * (t * (t * 6 - 15) + 10); }
-function lerp(t, a, b) { return a + t * (b - a); }
-function grad(hash, x, y) {
-    const h = hash & 3;
-    const u = h < 2 ? x : y;
-    const v = h < 2 ? y : x;
-    return ((h & 1) === 0 ? u : -u) + ((h & 2) === 0 ? v : -v);
-}
-function perlin2(x, y) {
-    const X = Math.floor(x) & 255;
-    const Y = Math.floor(y) & 255;
-    const topRight = perm[perm[X + 1] + Y + 1];
-    const topLeft = perm[perm[X] + Y + 1];
-    const bottomRight = perm[perm[X + 1] + Y];
-    const bottomLeft = perm[perm[X] + Y];
-    const xf = x - Math.floor(x);
-    const yf = y - Math.floor(y);
-    const u = fade(xf);
-    const v = fade(yf);
-    const x1 = lerp(u, grad(bottomLeft, xf, yf), grad(bottomRight, xf - 1, yf));
-    const x2 = lerp(u, grad(topLeft, xf, yf - 1), grad(topRight, xf - 1, yf - 1));
-    return (lerp(v, x1, x2) + 1) / 2;
-}
-
-// -----------------------------
-// UPDATE SKY VISUALS
-// -----------------------------
-function updateSkyVisuals() {
-    const time = performance.now() / 1000;
-    const windSpeed = 0.5;
-    const rotationSpeed = 0.02;
-
-    for (let i = 0; i < 4; i++) {
-        const circleData = circles[i];
-        const lines = skyVisuals[i];
+function updateCircles() {
+    for (let i = 0; i < circles.length; i++) {
+        const c = circles[i];
         const volume = circleAudio[i]?.currentVolume || 0;
-
-        // Smooth color transition
-        circleData.currentColor.lerp(circleData.targetColor, 0.02);
-        circleData.mesh.material.color.copy(circleData.currentColor);
-        circleData.mesh.material.emissive.copy(circleData.currentColor);
-
-        for (let l = 0; l < lines.length; l++) {
-            const v = lines[l];
-            const positions = v.geometry.attributes.position.array;
-
-            v.angle += rotationSpeed * 0.5;
-
-            for (let j = 0; j < segments; j++) {
-                let x = j * 0.2;
-                let z = l * 0.2;
-                const noise = perlin2(x + i*5 + time*windSpeed, z + i*5 + time*windSpeed) * 3;
-
-                const cosA = Math.cos(v.angle);
-                const sinA = Math.sin(v.angle);
-                const rx = x * cosA - z * sinA;
-                const rz = x * sinA + z * cosA;
-
-                positions[j*3+0] = rx;
-                positions[j*3+1] = noise * (0.5 + volume);
-                positions[j*3+2] = rz;
-            }
-
-            v.geometry.attributes.position.needsUpdate = true;
-
-            const brightness = 0.5 + 0.5 * volume;
-            const lineColor = new THREE.Color().copy(circleData.currentColor).multiplyScalar(brightness);
-            v.material.color.lerp(lineColor, 0.05);
-        }
+        c.currentColor.lerp(c.targetColor, 0.02);
+        c.mesh.material.color.copy(c.currentColor);
+        c.mesh.material.emissive.copy(c.currentColor);
+        // Float up and down
+        c.mesh.position.y = 1 + Math.sin(performance.now() * 0.002 + i) * 0.5 * (0.5 + volume);
     }
 }
 
 // -----------------------------
-// FLOATING ANIMATION
+// MINI-MAP UPDATE
 // -----------------------------
-function updateFloating() {
-    const time = performance.now() / 1000;
-    circles.forEach((c, i) => {
-        c.mesh.position.y = 0.5 + Math.sin(time + i) * 1.0;
-    });
+function updateMiniMap() {
+    const mapSize = 200;
+    const worldSize = 60; // same as floor
+    const scale = mapSize / worldSize;
+
+    // Update user dot
+    const x = (camera.position.x + worldSize/2) * scale - userDot.offsetWidth/2;
+    const y = (camera.position.z + worldSize/2) * scale - userDot.offsetHeight/2;
+    userDot.style.left = `${x}px`;
+    userDot.style.top = `${y}px`;
+
+    // Update source dots
+    for (let i = 0; i < circles.length; i++) {
+        const pos = circles[i].mesh.position;
+        const dotX = (pos.x + worldSize/2) * scale - sourceDots[i].offsetWidth/2;
+        const dotY = (pos.z + worldSize/2) * scale - sourceDots[i].offsetHeight/2;
+        sourceDots[i].style.left = `${dotX}px`;
+        sourceDots[i].style.top = `${dotY}px`;
+    }
 }
 
 // -----------------------------
@@ -380,8 +348,8 @@ function animate() {
     updateMovement();
     updateMelody();
     updateAudioSpatial();
-    updateSkyVisuals();
-    updateFloating();
+    updateCircles();
+    updateMiniMap();
     renderer.render(scene, camera);
 }
 animate();
