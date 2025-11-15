@@ -2,40 +2,37 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Neon Floating Circles with Mini-map and Drum Machine</title>
+<title>Floating Circles with Drum Machine</title>
 <style>
-    body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; }
-    canvas { display: block; }
+body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; }
+canvas { display: block; }
 
-    #ui {
-        position: absolute; top: 0; left: 0;
-        width: 100%; pointer-events: none;
-    }
+#ui { position: absolute; top: 0; left: 0; width: 100%; pointer-events: none; }
 
-    #miniMap {
-        position: absolute; top: 10px; left: 10px;
-        width: 200px; height: 200px;
-        background: rgba(0,0,0,0.6);
-        border: 2px solid #fff;
-        pointer-events: none;
-    }
+#miniMap {
+    position: absolute; top: 10px; left: 10px;
+    width: 200px; height: 200px;
+    background: rgba(0,0,0,0.6);
+    border: 2px solid #fff;
+    pointer-events: none;
+}
 
-    #startAudio {
-        position: absolute; top: 220px; left: 10px;
-        padding: 12px 20px;
-        background: #ff4444; color: #fff;
-        font-size: 18px; border: none;
-        cursor: pointer; border-radius: 8px;
-        pointer-events: auto;
-    }
+#startAudio {
+    position: absolute; top: 220px; left: 10px;
+    padding: 12px 20px;
+    background: #ff4444; color: #fff;
+    font-size: 18px; border: none;
+    cursor: pointer; border-radius: 8px;
+    pointer-events: auto;
+}
 
-    #timer {
-        position: absolute; top: 10px; left: 50%;
-        transform: translateX(-50%);
-        font-size: 24px;
-        color: #fff;
-        pointer-events: none;
-    }
+#timer {
+    position: absolute; top: 10px; left: 50%;
+    transform: translateX(-50%);
+    font-size: 24px;
+    color: #fff;
+    pointer-events: none;
+}
 </style>
 </head>
 <body>
@@ -62,7 +59,7 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
 // -----------------------------
-// WHITE FLOOR MESH
+// FLOOR MESH
 // -----------------------------
 const floorSize = 60;
 const floorSegments = 60;
@@ -89,7 +86,6 @@ const circlePositions = [
     new THREE.Vector3(-10,1,10),
     new THREE.Vector3(10,1,10)
 ];
-
 const neonColors = [0xff00ff,0x00ffff,0xffff00,0xff5500];
 
 for(let i=0;i<4;i++){
@@ -139,7 +135,6 @@ function updateMovement(){
     if(keys["a"]||keys["A"]) camera.position.addScaledVector(right,-moveSpeed);
     if(keys["d"]||keys["D"]) camera.position.addScaledVector(right,moveSpeed);
 
-    // Move circle to player location
     if(keys["1"]){ circles[0].mesh.position.copy(camera.position); keys["1"]=false; }
     if(keys["2"]){ circles[1].mesh.position.copy(camera.position); keys["2"]=false; }
     if(keys["3"]){ circles[2].mesh.position.copy(camera.position); keys["3"]=false; }
@@ -155,33 +150,23 @@ const circleAudio=[];
 const melody=[261.63,293.66,329.63,392.00,440.00];
 
 function startAudio(){
-    audioCtx = new AudioContext();
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
     for(let i=0;i<4;i++){
         const osc = audioCtx.createOscillator();
-        osc.type = "triangle";
-
-        const panner = audioCtx.createPanner();
-        panner.panningModel="HRTF";
-        panner.distanceModel="exponential";
-        panner.refDistance=1;
-        panner.maxDistance=60;
-        panner.rolloffFactor=0.8;
+        osc.type="triangle";
+        osc.frequency.value = melody[i % melody.length];
 
         const gain = audioCtx.createGain();
-        gain.gain.value=0;
+        gain.gain.value = 0.2; // lower volume
 
-        osc.connect(panner);
-        panner.connect(gain);
+        osc.connect(gain);
         gain.connect(audioCtx.destination);
-
         osc.start();
-        circleAudio.push({
-            osc, gain, panner,
-            nextNoteTime: audioCtx.currentTime + Math.random()*0.5,
-            currentVolume:0
-        });
+
+        circleAudio.push({osc, gain});
     }
+
     audioStarted=true;
     startTimer();
     document.getElementById("startAudio").style.display="none";
@@ -191,7 +176,7 @@ document.getElementById("startAudio").onclick=startAudio;
 // -----------------------------
 // TIMER
 // -----------------------------
-let timeLeft=300; // 5 minutes in seconds
+let timeLeft=300; // 5 min
 const timerDiv = document.getElementById("timer");
 let timerInterval;
 function startTimer(){
@@ -221,16 +206,11 @@ let drumStarted=false;
 const rectangles=[];
 function updateDrums(){
     if(!audioStarted) return;
-    const elapsed = 300 - timeLeft; // seconds since start
-    if(elapsed>60 && elapsed<180){ // 1 to 3 min
-        if(!drumStarted){
-            drumStarted=true;
-        }
-        // Add floor extrusions
-        for(let i=0;i<3;i++){
-            extrudeFloor();
-            addRandomWireRectangle();
-        }
+    const elapsed = 300 - timeLeft; 
+    if(elapsed>60 && elapsed<180){ // 1-3 minutes
+        if(!drumStarted){ drumStarted=true; }
+        extrudeFloor();
+        addRandomWireRectangle(); // only 1 rectangle per frame
     }
 }
 
@@ -261,7 +241,7 @@ function addRandomWireRectangle(){
 
 // Fade rectangles at 1 minute
 function updateRectanglesFade(){
-    if(timeLeft<=240){ // 5 min - 1 min = 4 min elapsed, fade out at 1 min remaining
+    if(timeLeft<=240){ 
         rectangles.forEach(r=>{
             r.material.opacity -=0.01;
             if(r.material.opacity<0) r.material.opacity=0;
@@ -270,28 +250,24 @@ function updateRectanglesFade(){
 }
 
 // -----------------------------
-// BOBBING CIRCLES AND AUDIO VISUALS
+// FLOATING CIRCLES
 // -----------------------------
 function updateCircles(){
     const time = performance.now()/1000;
     for(let i=0;i<circles.length;i++){
         const c=circles[i];
-        // Bobbing motion
         c.mesh.position.y = circlePositions[i].y + Math.sin(time + i)*0.5;
-
-        // Simple visual scaling with volume
-        const vol = circleAudio[i]?.currentVolume || 0;
+        const vol = circleAudio[i]?.gain?.gain.value || 0;
         c.mesh.scale.setScalar(1 + vol*0.5);
     }
 }
 
 // -----------------------------
-// MINI-MAP DRAWING
+// MINI-MAP
 // -----------------------------
 function updateMiniMap(){
     mapCtx.clearRect(0,0,mapCanvas.width,mapCanvas.height);
     const scale=mapCanvas.width/floorSize;
-    // Draw sound sources
     circles.forEach((c,i)=>{
         mapCtx.fillStyle = `#${neonColors[i].toString(16)}`;
         const x = mapCanvas.width/2 + c.mesh.position.x*scale;
@@ -300,7 +276,7 @@ function updateMiniMap(){
         mapCtx.arc(x,y,6,0,Math.PI*2);
         mapCtx.fill();
     });
-    // Draw user
+    // User
     mapCtx.fillStyle="#ff0000";
     const ux = mapCanvas.width/2 + camera.position.x*scale;
     const uy = mapCanvas.height/2 + camera.position.z*scale;
