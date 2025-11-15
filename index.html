@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Neon Musical Cubes with Wireframe Mountains</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; }
+        canvas { display: block; }
+        #startAudio {
+            position: absolute;
+            top: 20px; left: 20px;
+            padding: 12px 20px;
+            background: #ff4444; color: #fff;
+            font-size: 18px; border: none;
+            cursor: pointer;
+            border-radius: 8px;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+<button id="startAudio">Click to Enable Sound</button>
+
+<script type="module">
+import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
+
+// -----------------------------
+// SCENE SETUP
+// -----------------------------
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x000000);
+
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 200);
+camera.position.set(0, 1.5, 15);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+document.body.appendChild(renderer.domElement);
+
+// Neon Wire Mesh Floor
+const floorSize = 60;
+const floorSegments = 60;
+const floorGeometry = new THREE.PlaneGeometry(floorSize, floorSize, floorSegments, floorSegments);
+const floorMaterial = new THREE.LineBasicMaterial({ color: 0x00ff99, transparent: true, opacity: 0.5 });
+const floorWire = new THREE.LineSegments(new THREE.WireframeGeometry(floorGeometry), floorMaterial);
+floorWire.rotation.x = -Math.PI / 2;
+scene.add(floorWire);
+
+// -----------------------------
+// ALGORITHMIC MOUNTAINS
+// -----------------------------
+function createMountain(baseSize = 8, height = 6, segments = 5, posX = 0, posZ = 0) {
+    const geometry = new THREE.BufferGeometry();
+    const vertices = [];
+    const indices = [];
+
+    const step = baseSize / segments;
+
+    // Generate jagged peaks along X-axis
+    const peaks = [];
+    for (let i = 0; i <= segments; i++) {
+        peaks.push(Math.random() * height);
+    }
+
+    // Create triangles along X-axis
+    for (let i = 0; i < segments; i++) {
+        // Base square
+        const x0 = i * step - baseSize / 2;
+        const x1 = (i + 1) * step - baseSize / 2;
+        const z0 = -baseSize / 2;
+        const z1 = baseSize / 2;
+
+        const y0 = peaks[i];
+        const y1 = peaks[i + 1];
+
+        // Four corners of a triangle pyramid
+        vertices.push(x0, 0, z0);
+        vertices.push(x1, 0, z0);
+        vertices.push((x0 + x1)/2, y0, 0);
+
+        vertices.push(x0, 0, z1);
+        vertices.push(x1, 0, z1);
+        vertices.push((x0 + x1)/2, y1, 0);
+    }
+
+    const position = new Float32Array(vertices);
+    geometry.setAttribute('position', new THREE.BufferAttribute(position, 3));
+
+    const material = new THREE.LineBasicMaterial({ color: 0x00ff99, transparent: true, opacity: 0.6 });
+    const wire = new THREE.LineSegments(new THREE.WireframeGeometry(geometry), material);
+    wire.rotation.x = -Math.PI / 2;
+    wire.position.set(posX, 0, posZ);
+    scene.add(wire);
+}
+
+// Place mountains around floor
+const mountainDistance = 25;
+createMountain(15, 6, 8, -mountainDistance, -mountainDistance);
+createMountain(15, 6, 8, mountainDistance, -mountainDistance);
+createMountain(15, 6, 8, -mountainDistance, mountainDistance);
+createMountain(15, 6, 8, mountainDistance, mountainDistance);
+
+// -----------------------------
+// LIGHTS
+// -----------------------------
+const light = new THREE.DirectionalLight(0xffffff, 1);
+light.position.set(5, 10, 7);
+scene.add(light);
+
+// -----------------------------
+// CREATE FOUR CUBES
+// -----------------------------
+const cubes = [];
+const cubePositions = [
+    new THREE.Vector3(-10, 0.5, -10),
+    new THREE.Vector3(10, 0.5, -10),
+    new THREE.Vector3(-10, 0.5, 10),
+    new THREE.Vector3(10, 0.5, 10)
+];
+
+const neonColors = [0xff00ff, 0x00ffff, 0xffff00, 0xff5500];
+
+for (let i = 0; i < 4; i++) {
+    const cubeMat = new THREE.MeshStandardMaterial({ 
+        color: neonColors[i], 
+        emissive: neonColors[i], 
+        emissiveIntensity: 0.6
+    });
+    const cube = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), cubeMat);
+    cube.position.copy(cubePositions[i]);
+    scene.add(cube);
+    cubes.push({
+        mesh: cube,
+        currentColor: new THREE.Color(neonColors[i]),
+        targetColor: new THREE.Color(neonColors[i])
+    });
+}
+
+// -----------------------------
+// MOVEMENT CONTROLS
+// -----------------------------
+const keys = {};
+document.addEventListener("keydown", e => keys[e.key] = true);
+document.addEventListener("keyup", e => delete keys[e.key]);
+
+let yaw = 0, pitch = 0;
+function updateMovement() {
+    const moveSpeed = 0.13;
+    const rotSpeed = 0.02;
+    if (keys["ArrowLeft"]) yaw += rotSpeed;
+    if (keys["ArrowRight"]) yaw -= rotSpeed;
+    if (keys["ArrowUp"]) pitch += rotSpeed;
+    if (keys["ArrowDown"]) pitch -= rotSpeed;
+
+    camera.rotation.set(pitch, yaw, 0);
+
+    const forward = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
+    const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
+
+    if (keys["w"] || keys["W"]) camera.position.addScaledVector(forward, moveSpeed);
+    if (keys["s"] || keys["S"]) camera.position.addScaledVector(forward, -moveSpeed);
+    if (keys["a"] || keys["A"]) camera.position.addScaledVector(right, -moveSpeed);
+    if (keys["d"] || keys["D"]) camera.position.addScaledVector(right, moveSpeed);
+}
+
+// -----------------------------
+// AUDIO PLACEHOLDER
+// -----------------------------
+let audioStarted = false;
+document.getElementById("startAudio").onclick = () => {
+    audioStarted = true;
+    document.getElementById("startAudio").style.display = "none";
+};
+
+// -----------------------------
+// MAIN LOOP
+// -----------------------------
+function animate() {
+    requestAnimationFrame(animate);
+    updateMovement();
+    renderer.render(scene, camera);
+}
+animate();
+
+window.addEventListener("resize", () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+</body>
+</html>
