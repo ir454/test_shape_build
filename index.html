@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Neon Musical Cubes with Glow Sky</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; }
+        canvas { display: block; }
+        #startAudio {
+            position: absolute;
+            top: 20px; left: 20px;
+            padding: 12px 20px;
+            background: #ff4444; color: #fff;
+            font-size: 18px; border: none;
+            cursor: pointer;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+<button id="startAudio">Click to Enable Sound</button>
+
+<script type="module">
+import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
+import { EffectComposer } from "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/postprocessing/EffectComposer.js";
+import { RenderPass } from "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/postprocessing/UnrealBloomPass.js";
+
+// -----------------------------
+// SCENE SETUP
+// -----------------------------
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x000000);
+
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 200);
+camera.position.set(0, 1.5, 15);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+// -----------------------------
+// POST-PROCESSING FOR GLOW
+// -----------------------------
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+
+const bloomParams = {
+    exposure: 1,
+    bloomStrength: 0.8,
+    bloomThreshold: 0,
+    bloomRadius: 0.3
+};
+
+const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), bloomParams.bloomStrength, bloomParams.bloomRadius, bloomParams.bloomThreshold);
+composer.addPass(bloomPass);
+
+// -----------------------------
+// FLOOR
+// -----------------------------
+const floorSize = 60;
+const floorSegments = 60;
+const floorGeometry = new THREE.PlaneGeometry(floorSize, floorSize, floorSegments, floorSegments);
+const floorMaterial = new THREE.LineBasicMaterial({ color: 0x00ff99, transparent: true, opacity: 0.4 });
+const floorWire = new THREE.LineSegments(new THREE.WireframeGeometry(floorGeometry), floorMaterial);
+floorWire.rotation.x = -Math.PI / 2;
+scene.add(floorWire);
+
+// -----------------------------
+// LIGHTS
+// -----------------------------
+const light = new THREE.DirectionalLight(0xffffff, 1);
+light.position.set(5, 10, 7);
+scene.add(light);
+
+// -----------------------------
+// CUBES
+// -----------------------------
+const cubes = [];
+const cubePositions = [
+    new THREE.Vector3(-10, 0.5, -10),
+    new THREE.Vector3(10, 0.5, -10),
+    new THREE.Vector3(-10, 0.5, 10),
+    new THREE.Vector3(10, 0.5, 10)
+];
+const neonColors = [0xff00ff, 0x00ffff, 0xffff00, 0xff5500];
+
+for (let i = 0; i < 4; i++) {
+    const cubeMat = new THREE.MeshStandardMaterial({ 
+        color: neonColors[i], 
+        emissive: neonColors[i], 
+        emissiveIntensity: 1.0, 
+        metalness: 0.2, 
+        roughness: 0.1
+    });
+    const cube = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), cubeMat);
+    cube.position.copy(cubePositions[i]);
+    scene.add(cube);
+    cubes.push({
+        mesh: cube,
+        currentColor: new THREE.Color(neonColors[i]),
+        targetColor: new THREE.Color(neonColors[i])
+    });
+}
+
+// -----------------------------
+// SKY WIREFRAMES
+// -----------------------------
+const skyVisuals = [];
+const segments = 30;
+const linesPerCube = 15;
+for (let i = 0; i < 4; i++) {
+    const cubeLines = [];
+    for (let l = 0; l < linesPerCube; l++) {
+        const geometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(segments * 3);
+        for (let j = 0; j < segments; j++) {
+            positions[j * 3 + 0] = j - segments / 2;
+            positions[j * 3 + 1] = 0;
+            positions[j * 3 + 2] = (l - linesPerCube / 2) * 0.4;
+        }
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        const material = new THREE.LineBasicMaterial({ color: neonColors[i], linewidth: 2, transparent: true, opacity: 0.9 });
+        const line = new THREE.Line(geometry, material);
+        line.position.copy(cubePositions[i]).add(new THREE.Vector3(0, 3, 0));
+        scene.add(line);
+        cubeLines.push({ geometry, material, angle: Math.random() * Math.PI * 2 });
+    }
+    skyVisuals.push(cubeLines);
+}
+
+// -----------------------------
+// MOVEMENT
+// -----------------------------
+const keys = {};
+document.addEventListener("keydown", e => keys[e.key] = true);
+document.addEventListener("keyup", e => delete keys[e.key]);
+let yaw = 0, pitch = 0;
+function updateMovement() {
+    const moveSpeed = 0.13;
+    const rotSpeed = 0.02;
+    if (keys["ArrowLeft"]) yaw += rotSpeed;
+    if (keys["ArrowRight"]) yaw -= rotSpeed;
+    if (keys["ArrowUp"]) pitch += rotSpeed;
+    if (keys["ArrowDown"]) pitch -= rotSpeed;
+
+    camera.rotation.set(pitch, yaw, 0);
+
+    const forward = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
+    const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
+
+    if (keys["w"] || keys["W"]) camera.position.addScaledVector(forward, moveSpeed);
+    if (keys["s"] || keys["S"]) camera.position.addScaledVector(forward, -moveSpeed);
+    if (keys["a"] || keys["A"]) camera.position.addScaledVector(right, -moveSpeed);
+    if (keys["d"] || keys["D"]) camera.position.addScaledVector(right, moveSpeed);
+}
+
+// -----------------------------
+// AUDIO
+// -----------------------------
+let audioCtx;
+let audioStarted = false;
+const cubeAudio = [];
+const melody = [261.63, 293.66, 329.63, 392.00, 440.00];
+
+function createImpulseResponse(ctx, duration = 1.0, decay = 1.0) {
+    const rate = ctx.sampleRate;
+    const length = rate * duration;
+    const impulse = ctx.createBuffer(2, length, rate);
+    const left = impulse.getChannelData(0);
+    const right = impulse.getChannelData(1);
+    for (let i = 0; i < length; i++) {
+        const n = (length - i) / length;
+        const v = Math.random() * Math.pow(n, decay);
+        left[i] = v; right[i] = v;
+    }
+    return impulse;
+}
+
+function startAudio() {
+    audioCtx = new AudioContext();
+    const reverbImpulse = createImpulseResponse(audioCtx);
+
+    for (let i = 0; i < 4; i++) {
+        const osc = audioCtx.createOscillator();
+        osc.type = "triangle";
+
+        const panner = audioCtx.createPanner();
+        panner.panningModel = "HRTF";
+        panner.distanceModel = "exponential";
+        panner.refDistance = 1.0;
+        panner.maxDistance = 60;
+        panner.rolloffFactor = 0.8;
+
+        const lowpass = audioCtx.createBiquadFilter();
+        lowpass.type = "lowpass";
+        lowpass.frequency.value = 20000;
+
+        const convolver = audioCtx.createConvolver();
+        convolver.buffer = reverbImpulse;
+
+        const reverbGain = audioCtx.createGain();
+        reverbGain.gain.value = 0.1;
+
+        const gain = audioCtx.createGain();
+        gain.gain.value = 0;
+
+        // Dry path
+        osc.connect(panner);
+        panner.connect(lowpass);
+        lowpass.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        // Wet path
+        osc.connect(convolver);
+        convolver.connect(reverbGain);
+        reverbGain.connect(audioCtx.destination);
+
+        osc.start();
+
+        cubeAudio.push({
+            osc, gain, panner, lowpass,
+            nextNoteTime: audioCtx.currentTime + Math.random() * 0.5,
+            currentFreq: 0,
+            currentVolume: 0
+        });
+    }
+
+    audioStarted = true;
+    document.getElementById("startAudio").style.display = "none";
+}
+document.getElementById("startAudio").onclick = startAudio;
+
+// -----------------------------
+// MELODY + COLOR TRANSITION
+// -----------------------------
+function updateMelody() {
+    if (!audioStarted) return;
+    const now = audioCtx.currentTime;
+
+    for (let i = 0; i < 4; i++) {
+        const c = cubeAudio[i];
+        if (now >= c.nextNoteTime) {
+            const noteIndex = Math.floor(Math.random() * melody.length);
+            const freq = melody[noteIndex];
+            const color = new THREE.Color(`hsl(${Math.random()*360}, 100%, 50%)`);
+            cubes[i].targetColor.copy(color); // smooth transition
+            c.osc.frequency.setValueAtTime(freq, now);
+            c.nextNoteTime = now + 0.35 + Math.random() * 0.15;
+            c.currentFreq = freq;
+        }
+    }
+}
+
+// -----------------------------
+// SPATIAL AUDIO
+// -----------------------------
+function updateAudioSpatial() {
+    if (!audioStarted) return;
+
+    audioCtx.listener.positionX.value = camera.position.x;
+    audioCtx.listener.positionY.value = camera.position.y;
+    audioCtx.listener.positionZ.value = camera.position.z;
+
+    const forward = new THREE.Vector3(0, 0, -1).applyEuler(camera.rotation);
+    audioCtx.listener.forwardX.value = forward.x;
+    audioCtx.listener.forwardY.value = forward.y;
+    audioCtx.listener.forwardZ.value = forward.z;
+    audioCtx.listener.upX.value = 0;
+    audioCtx.listener.upY.value = 1;
+    audioCtx.listener.upZ.value = 0;
+
+    for (let i = 0; i < 4; i++) {
+        const cubeObj = cubes[i].mesh;
+        const src = cubeAudio[i];
+        src.panner.positionX.value = cubeObj.position.x;
+        src.panner.positionY.value = cubeObj.position.y;
+        src.panner.positionZ.value = cubeObj.position.z;
+
+        const dist = camera.position.distanceTo(cubeObj.position);
+        const maxDist = 25;
+        const t = Math.min(dist / maxDist, 1);
+        const volume = Math.pow(1 - t, 3);
+        src.gain.gain.linearRampToValueAtTime(volume, audioCtx.currentTime + 0.1);
+        src.currentVolume = volume;
+
+        const minCut = 600;
+        const maxCut = 20000;
+        const cutoff = minCut + (maxCut - minCut) * Math.pow(1 - t, 2.2);
+        src.lowpass.frequency.linearRampToValueAtTime(cutoff, audioCtx.currentTime + 0.1);
+    }
+}
+
+// -----------------------------
+// PERLIN NOISE
+// -----------------------------
+const perm = new Uint8Array(512);
+const p = new Uint8Array(256);
+for (let i = 0; i < 256; i++) p[i] = i;
+for (let i = 255; i > 0; i--) {
+    const n = Math.floor(Math.random() * (i + 1));
+    [p[i], p[n]] = [p[n], p[i]];
+}
+for (let i = 0; i < 512; i++) perm[i] = p[i & 255];
+
+function fade(t) { return t * t * t * (t * (t * 6 - 15) + 10); }
+function lerp(t, a, b) { return a + t * (b - a); }
+function grad(hash, x, y) { const h = hash & 3; const u = h < 2 ? x : y; const v = h < 2 ? y : x; return ((h & 1) === 0 ? u : -u) + ((h & 2) === 0 ? v : -v); }
+function perlin2(x, y) { const X = Math.floor(x) & 255; const Y = Math.floor(y) & 255; const topRight = perm[perm[X + 1] + Y + 1]; const topLeft = perm[perm[X] + Y + 1]; const bottomRight = perm[perm[X + 1] + Y]; const bottomLeft = perm[perm[X] + Y]; const xf = x - Math.floor(x); const yf = y - Math.floor(y); const u = fade(xf); const v = fade(yf); const x1 = lerp(u, grad(bottomLeft, xf, yf), grad(bottomRight, xf - 1, yf)); const x2 = lerp(u, grad(topLeft, xf, yf - 1), grad(topRight, xf - 1, yf - 1)); return (lerp(v, x1, x2) + 1) / 2; }
+
+// -----------------------------
+// SKY VISUAL UPDATE (CLOUDS + ROTATION + COLOR + VOLUME)
+function updateSkyVisuals() {
+    const time = performance.now() / 1000;
+    const windSpeed = 0.5;
+    const rotationSpeed = 0.02;
+
+    for (let i = 0; i < 4; i++) {
+        const cubeData = cubes[i];
+        const lines = skyVisuals[i];
+        const volume = cubeAudio[i]?.currentVolume || 0;
+
+        cubeData.currentColor.lerp(cubeData.targetColor, 0.02);
+        cubeData.mesh.material.color.copy(cubeData.currentColor);
+        cubeData.mesh.material.emissive.copy(cubeData.currentColor);
+
+        for (let l = 0; l < lines.length; l++) {
+            const v = lines[l];
+            const positions = v.geometry.attributes.position.array;
+
+            v.angle += rotationSpeed * 0.5;
+
+            for (let j = 0; j < segments; j++) {
+                let x = j * 0.2;
+                let z = l * 0.2;
+                const noise = perlin2(x + i*5 + time*windSpeed, z + i*5 + time*windSpeed) * 3;
+
+                const cosA = Math.cos(v.angle);
+                const sinA = Math.sin(v.angle);
+                const rx = x * cosA - z * sinA;
+                const rz = x * sinA + z * cosA;
+
+                positions[j*3+0] = rx;
+                positions[j*3+1] = noise * (0.5 + volume);
+                positions[j*3+2] = rz;
+            }
+
+            v.geometry.attributes.position.needsUpdate = true;
+
+            const brightness = 0.5 + 0.5 * volume;
+            const lineColor = new THREE.Color().copy(cubeData.currentColor).multiplyScalar(brightness);
+            v.material.color.lerp(lineColor, 0.05);
+        }
+    }
+}
+
+// -----------------------------
+// ANIMATE
+// -----------------------------
+function animate() {
+    requestAnimationFrame(animate);
+    updateMovement();
+    updateMelody();
+    updateAudioSpatial();
+    updateSkyVisuals();
+    composer.render();
+}
+animate();
+
+window.addEventListener("resize", () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    composer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+</body>
+</html>
