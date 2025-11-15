@@ -17,12 +17,7 @@
     padding: 10px;
     border-radius: 8px;
   }
-  #timer {
-    font-size: 28px;
-    color: white;
-    font-weight: bold;
-    text-align: center;
-  }
+  #timer { font-size: 28px; color: white; font-weight: bold; text-align: center; }
   #startAudio {
     padding: 8px 16px;
     background: #ff4444;
@@ -95,7 +90,6 @@ for(let i=0;i<4;i++){
 
 // -------------------- SEGMENTS --------------------
 const segmentsPerCircle = 15;
-const segmentLength = 2;
 const circleSegments=[];
 for(let i=0;i<4;i++){
     const segs=[];
@@ -297,7 +291,8 @@ function startDrumMachine(){
         kickGain.connect(panner); panner.connect(audioCtx.destination);
         kick.start(now); kick.stop(now+0.2);
 
-        extrudeFloor(0.5);
+        // ---- Drum visuals ----
+        extrudeFloorRandom();
         addRandomWireRectangle();
     }, 300 + Math.random()*200);
 }
@@ -307,12 +302,16 @@ function stopDrumMachine(){
     drumActive=false;
 }
 
-// -------------------- EXTRUDE FLOOR --------------------
-function extrudeFloor(amount){
-    floorMesh.geometry.vertices.forEach(v=>{
-        v.y += (Math.random()-0.5)*amount;
-    });
-    floorMesh.geometry.verticesNeedUpdate=true;
+// -------------------- FLOOR EXTRUSION RANDOM --------------------
+function extrudeFloorRandom(){
+    const verts=floorMesh.geometry.attributes.position;
+    for(let i=0;i<verts.count;i++){
+        if(Math.random()<0.05){
+            verts.setY(i,verts.getY(i)+Math.random()*1.0);
+        }
+    }
+    verts.needsUpdate=true;
+    floorMesh.geometry.computeVertexNormals();
 }
 
 // -------------------- RANDOM WIRE RECTANGLES --------------------
