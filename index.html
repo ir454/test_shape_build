@@ -6,8 +6,6 @@
 <style>
   body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; }
   canvas { display: block; }
-  
-  /* UI container on top-left */
   #uiContainer {
     position: absolute;
     top: 10px;
@@ -19,14 +17,12 @@
     padding: 10px;
     border-radius: 8px;
   }
-
   #timer {
     font-size: 28px;
     color: white;
     font-weight: bold;
     text-align: center;
   }
-
   #startAudio {
     padding: 8px 16px;
     background: #ff4444;
@@ -36,7 +32,6 @@
     cursor: pointer;
     border-radius: 6px;
   }
-
   #miniMap {
     width: 150px;
     height: 150px;
@@ -47,7 +42,6 @@
 </style>
 </head>
 <body>
-
 <div id="uiContainer">
   <div id="timer">05:00</div>
   <canvas id="miniMap"></canvas>
@@ -57,7 +51,7 @@
 <script type="module">
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
 
-// -------------------- SCENE SETUP --------------------
+// -------------------- SCENE --------------------
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000000);
 
@@ -91,7 +85,6 @@ const circlePositions = [
     new THREE.Vector3(10,0.5,10)
 ];
 const neonColors=[0xff00ff,0x00ffff,0xffff00,0xff5500];
-
 for(let i=0;i<4;i++){
     const mat = new THREE.MeshStandardMaterial({color:neonColors[i],emissive:neonColors[i],emissiveIntensity:0.6});
     const circle = new THREE.Mesh(new THREE.SphereGeometry(1,16,16), mat);
@@ -100,7 +93,7 @@ for(let i=0;i<4;i++){
     circles.push({mesh:circle, currentColor:new THREE.Color(neonColors[i]), targetColor:new THREE.Color(neonColors[i]), baseY:circle.position.y});
 }
 
-// -------------------- SEGMENTS ABOVE CIRCLES --------------------
+// -------------------- SEGMENTS --------------------
 const segmentsPerCircle = 15;
 const segmentLength = 2;
 const circleSegments=[];
@@ -122,26 +115,21 @@ for(let i=0;i<4;i++){
 const keys={};
 document.addEventListener("keydown", e=>keys[e.key]=true);
 document.addEventListener("keyup", e=>delete keys[e.key]);
-
 let yaw=0, pitch=0;
+
 function updateMovement(){
     const moveSpeed=0.13, rotSpeed=0.02;
     if(keys["ArrowLeft"]) yaw += rotSpeed;
     if(keys["ArrowRight"]) yaw -= rotSpeed;
     if(keys["ArrowUp"]) pitch += rotSpeed;
     if(keys["ArrowDown"]) pitch -= rotSpeed;
-
     camera.rotation.set(pitch,yaw,0);
-
     const forward = new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw));
     const right = new THREE.Vector3(Math.cos(yaw),0,-Math.sin(yaw));
-
     if(keys["w"]||keys["W"]) camera.position.addScaledVector(forward,moveSpeed);
     if(keys["s"]||keys["S"]) camera.position.addScaledVector(forward,-moveSpeed);
     if(keys["a"]||keys["A"]) camera.position.addScaledVector(right,-moveSpeed);
     if(keys["d"]||keys["D"]) camera.position.addScaledVector(right,moveSpeed);
-
-    // Teleport circles with number keys
     if(keys["1"]){circles[0].mesh.position.copy(camera.position); circles[0].mesh.position.y=1; delete keys["1"];}
     if(keys["2"]){circles[1].mesh.position.copy(camera.position); circles[1].mesh.position.y=1; delete keys["2"];}
     if(keys["3"]){circles[2].mesh.position.copy(camera.position); circles[2].mesh.position.y=1; delete keys["3"];}
@@ -170,25 +158,20 @@ function createImpulseResponse(ctx,duration=1.0,decay=1.0){
 function startAudio(){
     audioCtx=new AudioContext();
     const reverb=createImpulseResponse(audioCtx);
-
     for(let i=0;i<4;i++){
         const osc=audioCtx.createOscillator();
         osc.type="triangle";
         const panner=audioCtx.createPanner();
-        panner.panningModel="HRTF";
-        panner.refDistance=1.0; panner.maxDistance=60; panner.rolloffFactor=0.8;
+        panner.panningModel="HRTF"; panner.refDistance=1.0; panner.maxDistance=60; panner.rolloffFactor=0.8;
         const lowpass=audioCtx.createBiquadFilter(); lowpass.type="lowpass"; lowpass.frequency.value=20000;
         const convolver=audioCtx.createConvolver(); convolver.buffer=reverb;
         const reverbGain=audioCtx.createGain(); reverbGain.gain.value=0.10;
         const gain=audioCtx.createGain(); gain.gain.value=0;
-
         osc.connect(panner); panner.connect(lowpass); lowpass.connect(gain); gain.connect(audioCtx.destination);
         osc.connect(convolver); convolver.connect(reverbGain); reverbGain.connect(audioCtx.destination);
         osc.start();
-
         circleAudio.push({osc,gain,panner,lowpass,nextNoteTime:audioCtx.currentTime+Math.random()*0.5,currentFreq:0,currentVolume:0,lastNoteColor:new THREE.Color(neonColors[i])});
     }
-
     audioStarted=true;
     document.getElementById("startAudio").style.display="none";
     startTimer();
@@ -199,19 +182,16 @@ let timerSeconds=300, timerInterval=null;
 function startTimer(){
     timerInterval=setInterval(()=>{
         timerSeconds--;
-        // Drum machine triggers
-        if(timerSeconds===240) startDrumMachine(); // 5:00-1:00
-        if(timerSeconds===120) stopDrumMachine();  // 5:00-3:00
-
+        if(timerSeconds===240) startDrumMachine();
+        if(timerSeconds===120) stopDrumMachine();
         if(timerSeconds<=0){ clearInterval(timerInterval); stopAudio(); stopDrumMachine(); }
-
         const min=Math.floor(timerSeconds/60).toString().padStart(2,'0');
         const sec=(timerSeconds%60).toString().padStart(2,'0');
         document.getElementById("timer").innerText=min+":"+sec;
     },1000);
 }
 
-// -------------------- UPDATE MELODY --------------------
+// -------------------- MELODY --------------------
 function updateMelody(){
     if(!audioStarted) return;
     const now=audioCtx.currentTime;
@@ -229,16 +209,14 @@ function updateMelody(){
     }
 }
 
-// -------------------- AUDIO SPATIAL --------------------
+// -------------------- SPATIAL AUDIO --------------------
 function updateAudioSpatial(){
     if(!audioStarted) return;
     audioCtx.listener.positionX.value=camera.position.x;
     audioCtx.listener.positionY.value=camera.position.y;
     audioCtx.listener.positionZ.value=camera.position.z;
     const forward=new THREE.Vector3(0,0,-1).applyEuler(camera.rotation);
-    audioCtx.listener.forwardX.value=forward.x;
-    audioCtx.listener.forwardY.value=forward.y;
-    audioCtx.listener.forwardZ.value=forward.z;
+    audioCtx.listener.forwardX.value=forward.x; audioCtx.listener.forwardY.value=forward.y; audioCtx.listener.forwardZ.value=forward.z;
     audioCtx.listener.upX.value=0; audioCtx.listener.upY.value=1; audioCtx.listener.upZ.value=0;
 
     for(let i=0;i<4;i++){
@@ -252,7 +230,7 @@ function updateAudioSpatial(){
     }
 }
 
-// -------------------- UPDATE CIRCLE VISUALS --------------------
+// -------------------- VISUALS --------------------
 function updateCirclesVisuals(){
     const time=performance.now()/1000;
     for(let i=0;i<4;i++){
@@ -261,13 +239,12 @@ function updateCirclesVisuals(){
         circleData.currentColor.lerp(circleData.targetColor,0.02);
         circleData.mesh.material.color.copy(circleData.currentColor);
         circleData.mesh.material.emissive.copy(circleData.currentColor);
-
         const segs=circleSegments[i];
         for(let j=0;j<segs.length;j++){
             const seg=segs[j];
             const freq=circleAudio[i]?.currentFreq||440;
             const amp=circleAudio[i]?.currentVolume||0;
-            const len=segmentLength*(0.5+amp)*Math.sin(freq*time+j);
+            const len=2*(0.5+amp)*Math.sin(freq*time+j);
             const positions=seg.geom.attributes.position.array;
             positions[0]=0; positions[1]=0; positions[2]=0;
             positions[3]=0; positions[4]=len; positions[5]=0;
@@ -285,14 +262,12 @@ function updateMiniMap(){
     miniCtx.clearRect(0,0,miniMap.width,miniMap.height);
     miniCtx.fillStyle="#111";
     miniCtx.fillRect(0,0,miniMap.width,miniMap.height);
-
     circles.forEach((c,i)=>{
         const x=Math.floor((c.mesh.position.x+floorSize/2)/floorSize*miniMap.width);
         const y=Math.floor((c.mesh.position.z+floorSize/2)/floorSize*miniMap.height);
         miniCtx.fillStyle=`#${neonColors[i].toString(16).padStart(6,'0')}`;
         miniCtx.beginPath(); miniCtx.arc(x,y,5,0,Math.PI*2); miniCtx.fill();
     });
-
     const ux=Math.floor((camera.position.x+floorSize/2)/floorSize*miniMap.width);
     const uy=Math.floor((camera.position.z+floorSize/2)/floorSize*miniMap.height);
     miniCtx.fillStyle="red";
@@ -322,23 +297,8 @@ function startDrumMachine(){
         kickGain.connect(panner); panner.connect(audioCtx.destination);
         kick.start(now); kick.stop(now+0.2);
 
-        // Extrude floor
         extrudeFloor(0.5);
-
-        // snare-like noise
-        if(Math.random()<0.5){
-            const bufferSize=audioCtx.sampleRate*0.1;
-            const buffer=audioCtx.createBuffer(1,bufferSize,audioCtx.sampleRate);
-            const data=buffer.getChannelData(0);
-            for(let i=0;i<bufferSize;i++){ data[i]=(Math.random()*2-1)*0.3; }
-            const noise=audioCtx.createBufferSource(); noise.buffer=buffer;
-            const noiseGain=audioCtx.createGain(); noiseGain.gain.setValueAtTime(0.3,now);
-            noise.connect(noiseGain);
-            const snarePanner=audioCtx.createPanner();
-            snarePanner.positionX.value=drumPosition.x; snarePanner.positionY.value=drumPosition.y; snarePanner.positionZ.value=drumPosition.z;
-            noiseGain.connect(snarePanner); snarePanner.connect(audioCtx.destination);
-            noise.start(now); noise.stop(now+0.1);
-        }
+        addRandomWireRectangle();
     }, 300 + Math.random()*200);
 }
 
@@ -355,13 +315,27 @@ function extrudeFloor(amount){
     floorMesh.geometry.verticesNeedUpdate=true;
 }
 
+// -------------------- RANDOM WIRE RECTANGLES --------------------
+function addRandomWireRectangle(){
+    const width = Math.random()*4+1;
+    const height = Math.random()*3+0.5;
+    const depth = Math.random()*4+1;
+    const x = (Math.random()-0.5)*floorSize;
+    const z = (Math.random()-0.5)*floorSize;
+    const geometry = new THREE.BoxGeometry(width,height,depth);
+    const material = new THREE.MeshBasicMaterial({color:0xffffff, wireframe:true});
+    const mesh = new THREE.Mesh(geometry,material);
+    mesh.position.set(x,height/2,z);
+    scene.add(mesh);
+}
+
 // -------------------- STOP AUDIO --------------------
 function stopAudio(){
     if(audioCtx) audioCtx.close();
     audioStarted=false;
 }
 
-// -------------------- MAIN LOOP --------------------
+// -------------------- ANIMATE --------------------
 function animate(){
     requestAnimationFrame(animate);
     updateMovement();
